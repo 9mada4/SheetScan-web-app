@@ -8,6 +8,19 @@
     table { border-collapse: collapse; }
     td, th { border: 1px solid #888; padding: 4px 8px; }
     #note { color: #777; margin-bottom: 8px; }
+    #excelInputLabel {
+      display: inline-block;
+      padding: 8px 16px;
+      background: #3178c6;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    #excelInput {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -15,7 +28,11 @@
   <div id="note">
     アップロードしたExcelファイルは外部に送信されません。すべてブラウザ内で処理されます。
   </div>
+
+  <label id="excelInputLabel" for="excelInput">Excelファイルを選択</label>
   <input type="file" id="excelInput" accept=".xlsx">
+  <span id="selectedFileName"></span>
+  <br>
   <label>
     シート名:
     <input type="text" id="sheetName" value="">
@@ -29,15 +46,15 @@
     let workbook = null;
     let excelData = [];
 
-    // Excelファイル読み込み
+    // ファイル名表示
     document.getElementById('excelInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
+      document.getElementById('selectedFileName').textContent = file ? `選択中: ${file.name}` : '';
       if (!file) return;
       const reader = new FileReader();
       reader.onload = function(ev) {
         const data = new Uint8Array(ev.target.result);
         workbook = XLSX.read(data, {type: 'array'});
-        // シート名のリストを表示
         document.getElementById('result').innerHTML =
           'シート名候補: ' + workbook.SheetNames.map(n => `<b>${n}</b>`).join(', ');
       };
@@ -76,7 +93,6 @@
         document.getElementById('result').innerHTML = 'キーワードを入力してください。';
         return;
       }
-      // 部分一致で該当行抽出
       const matched = excelData.filter(
         row => row.some(cell => (cell ?? '').toString().includes(keyword))
       );
@@ -84,7 +100,6 @@
         document.getElementById('result').innerHTML = '一致する行がありません。';
         return;
       }
-      // テーブルとして出力
       let html = '<table>';
       matched.forEach(row => {
         html += '<tr>' + row.map(cell => `<td>${cell ?? ""}</td>`).join('') + '</tr>';

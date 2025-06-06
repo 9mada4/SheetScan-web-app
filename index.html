@@ -2,9 +2,11 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>Excelシート名一覧表示</title>
+  <title>Excelファイル部分一致検索</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js"></script>
   <style>
+    table { border-collapse: collapse; }
+    td, th { border: 1px solid #888; padding: 4px 8px; }
     #note { color: #777; margin-bottom: 8px; }
     #excelInputLabel {
       display: inline-block;
@@ -19,49 +21,111 @@
     #excelInput {
       display: none;
     }
-    .sheet-list {
-      background: #eef; 
-      padding: 6px 10px; 
-      border-radius: 4px;
-      margin-bottom: 10px;
-      margin-top: 8px;
+    #sheetNameSelect {
+      font-size: 1em;
+      margin: 0 4px;
     }
   </style>
 </head>
 <body>
-  <h1>Excelファイルのシート名を表示</h1>
+  <h1>Excelファイル部分一致検索</h1>
   <div id="note">
     アップロードしたExcelファイルは外部に送信されません。すべてブラウザ内で処理されます。
   </div>
   <label id="excelInputLabel" for="excelInput">Excelファイルを選択</label>
   <input type="file" id="excelInput" accept=".xlsx">
   <span id="selectedFileName"></span>
-  <div id="sheetList" class="sheet-list"></div>
+  <br>
+  <div id="sheetArea" style="display:none;">
+    <label>シート名:
+      <select id="sheetNameSelect"></select>
+      <button id="loadBtn">シート読み込み</button>
+    </label>
+  </div>
+  <br>
+  <input type="text" id="keyword" placeholder="キーワードを入力">
+  <button id="searchBtn">検索</button>
+  <div id="result"></div>
   <script>
+    let workbook = null;
+    let excelData = [];
+
+    // ファイル読み込み時にシート名リストを自動表示
     document.getElementById('excelInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       document.getElementById('selectedFileName').textContent = file ? `選択中: ${file.name}` : '';
-      document.getElementById('sheetList').textContent = ''; // 前の内容クリア
+      document.getElementById('sheetArea').style.display = 'none';
       if (!file) return;
-
       const reader = new FileReader();
       reader.onload = function(ev) {
         try {
           const data = new Uint8Array(ev.target.result);
-          const workbook = XLSX.read(data, {type: 'array'});
+          workbook = XLSX.read(data, {type: 'array'});
           const names = workbook.SheetNames;
           if (names.length === 0) {
-            document.getElementById('sheetList').textContent = 'シートが見つかりませんでした。';
-          } else {
-            document.getElementById('sheetList').innerHTML =
-              'シート名一覧：' + names.map(n => `<b>${n}</b>`).join(', ');
+            document.getElementById('result').textContent = 'シートが見つかりませんでした。';
+            return;
           }
+          // シート名プルダウン生成
+          const select = document.getElementById('sheetNameSelect');
+          select.innerHTML = '';
+          names.forEach(n => {
+            const opt = document.createElement('option');
+            opt.value = n;
+            opt.textContent = n;
+            select.appendChild(opt);
+          });
+          document.getElementById('sheetArea').style.display = '';
+          document.getElementById('result').innerHTML = `シートを選んで「シート読み込み」ボタンを押してください。`;
         } catch (err) {
-          document.getElementById('sheetList').textContent = 'ファイルの読み込みに失敗しました。';
+          document.getElementById('result').textContent = 'ファイルの読み込みに失敗しました。';
         }
       };
       reader.readAsArrayBuffer(file);
     });
+
+    // シート読み込み
+    document.getElementById('loadBtn').onclick = function() {
+      const select = document.getElementById('sheetNameSelect');
+      const sheetName = select.value;
+      if (!workbook) {
+        document.getElementById('result').innerHTML = 'まずExcelファイルをアップロードしてください。';
+        return;
+      }
+      if (!sheetName) {
+        document.getElementById('result').innerHTML = 'シート名を選択してください。';
+        return;
+      }
+      const sheet = workbook.Sheets[sheetName];
+      excelData = XLSX.utils.sheet_to_json(sheet, {header:1});
+      document.getElementById('result').innerHTML = `<b>シート「${sheetName}」を読み込みました。キーワードを入力して検索できます。</b>`;
+    };
+
+    // 検索
+    document.getElementById('searchBtn').onclick = function() {
+      const keyword = document.getElementById('keyword').value;
+      if (!excelData.length) {
+        document.getElementById('result').innerHTML = 'まずシートを読み込んでください。';
+        return;
+      }
+      if (!keyword) {
+        document.getElementById('result').innerHTML = 'キーワードを入力してください。';
+        return;
+      }
+      const matched = excelData.filter(
+        row => row.some(cell => (cell ?? '').toString().includes(keyword))
+      );
+      if (!matched.length) {
+        document.getElementById('result').innerHTML = '一致する行がありません。';
+        return;
+      }
+      let html = '<table>';
+      matched.forEach(row => {
+        html += '<tr>' + row.map(cell => `<td>${cell ?? ""}</td>`).join('') + '</tr>';
+      });
+      html += '</table>';
+      document.getElementById('result').innerHTML = html;
+    };
   </script>
 </body>
 </html>

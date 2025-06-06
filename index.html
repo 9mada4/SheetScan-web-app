@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>Excelシート名一覧表示</title>
-  <!-- xlsx ライブラリ（0.18.5）を cdnjs から読み込む例 -->
   <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
   <style>
     #note { color: #777; margin-bottom: 8px; }
@@ -21,8 +20,8 @@
       display: none;
     }
     .sheet-list {
-      background: #eef; 
-      padding: 6px 10px; 
+      background: #eef;
+      padding: 6px 10px;
       border-radius: 4px;
       margin-bottom: 10px;
       margin-top: 8px;
@@ -38,11 +37,24 @@
   <input type="file" id="excelInput" accept=".xlsx">
   <span id="selectedFileName"></span>
   <div id="sheetList" class="sheet-list"></div>
+
+  <!-- ▼ 検索ボックスと検索結果 -->
+  <div>
+    <input type="text" id="searchInput" placeholder="シート名を検索" style="margin-top: 12px; padding: 6px; width: 200px;">
+  </div>
+  <div id="searchResult" class="sheet-list"></div>
+
   <script>
+    const searchInput = document.getElementById('searchInput');
+    const searchResult = document.getElementById('searchResult');
+
+    let sheetNames = [];  // シート名を保持
+
     document.getElementById('excelInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       document.getElementById('selectedFileName').textContent = file ? `選択中: ${file.name}` : '';
-      document.getElementById('sheetList').textContent = ''; // 前の内容クリア
+      document.getElementById('sheetList').textContent = '';
+      document.getElementById('searchResult').textContent = '';
       if (!file) return;
 
       const reader = new FileReader();
@@ -50,18 +62,33 @@
         try {
           const data = new Uint8Array(ev.target.result);
           const workbook = XLSX.read(data, {type: 'array'});
-          const names = workbook.SheetNames;
-          if (names.length === 0) {
+          sheetNames = workbook.SheetNames;
+          if (sheetNames.length === 0) {
             document.getElementById('sheetList').textContent = 'シートが見つかりませんでした。';
           } else {
             document.getElementById('sheetList').innerHTML =
-              'シート名一覧：' + names.map(n => `<b>${n}</b>`).join(', ');
+              'シート名一覧：' + sheetNames.map(n => `<b>${n}</b>`).join(', ');
           }
         } catch (err) {
           document.getElementById('sheetList').textContent = 'ファイルの読み込みに失敗しました。';
         }
       };
       reader.readAsArrayBuffer(file);
+    });
+
+    // 検索ボックスで部分一致
+    searchInput.addEventListener('input', function() {
+      const query = searchInput.value.trim().toLowerCase();
+      if (!query) {
+        searchResult.innerHTML = '';
+        return;
+      }
+      const matches = sheetNames.filter(name => name.toLowerCase().includes(query));
+      if (matches.length === 0) {
+        searchResult.innerHTML = '一致するシートはありません。';
+      } else {
+        searchResult.innerHTML = '一致したシート名：' + matches.map(n => `<b>${n}</b>`).join(', ');
+      }
     });
   </script>
 </body>

@@ -1,97 +1,67 @@
-<script>
-  let workbook = null;
-  let excelData = [];
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Excelシート名一覧表示</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js"></script>
+  <style>
+    #note { color: #777; margin-bottom: 8px; }
+    #excelInputLabel {
+      display: inline-block;
+      padding: 8px 16px;
+      background: #3178c6;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    #excelInput {
+      display: none;
+    }
+    .sheet-list {
+      background: #eef; 
+      padding: 6px 10px; 
+      border-radius: 4px;
+      margin-bottom: 10px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Excelファイルのシート名を表示</h1>
+  <div id="note">
+    アップロードしたExcelファイルは外部に送信されません。すべてブラウザ内で処理されます。
+  </div>
+  <label id="excelInputLabel" for="excelInput">Excelファイルを選択</label>
+  <input type="file" id="excelInput" accept=".xlsx">
+  <span id="selectedFileName"></span>
+  <div id="sheetList" class="sheet-list"></div>
+  <script>
+    document.getElementById('excelInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      document.getElementById('selectedFileName').textContent = file ? `選択中: ${file.name}` : '';
+      document.getElementById('sheetList').textContent = ''; // 前の内容クリア
+      if (!file) return;
 
-  // ******** 1. ファイル読み込み ********
-  document.getElementById('excelInput').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    document.getElementById('selectedFileName').textContent =
-      file ? `選択中: ${file.name}` : '';
-    document.getElementById('sheetArea').style.display = 'none';
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        /* ★★ ArrayBuffer をそのまま渡す ★★ */
-        const data = ev.target.result;                // ← ここを変更
-        workbook = XLSX.read(data, { type: 'array' }); // ← ここは同じ
-        const names = workbook.SheetNames;
-
-        if (names.length === 0) {
-          document.getElementById('result').textContent =
-            'シートが見つかりませんでした。';
-          return;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        try {
+          const data = new Uint8Array(ev.target.result);
+          const workbook = XLSX.read(data, {type: 'array'});
+          const names = workbook.SheetNames;
+          if (names.length === 0) {
+            document.getElementById('sheetList').textContent = 'シートが見つかりませんでした。';
+          } else {
+            document.getElementById('sheetList').innerHTML =
+              'シート名一覧：' + names.map(n => `<b>${n}</b>`).join(', ');
+          }
+        } catch (err) {
+          document.getElementById('sheetList').textContent = 'ファイルの読み込みに失敗しました。';
         }
-
-        /* シート名プルダウン生成 */
-        const select = document.getElementById('sheetNameSelect');
-        select.innerHTML = '';
-        names.forEach((n) => {
-          const opt = document.createElement('option');
-          opt.value = n;
-          opt.textContent = n;
-          select.appendChild(opt);
-        });
-        document.getElementById('sheetArea').style.display = '';
-        document.getElementById('result').innerHTML =
-          'シートを選んで「シート読み込み」を押してください。';
-      } catch (err) {
-        /* ★★ 例外内容を可視化 ★★ */
-        console.error('Excel 読み込みエラー', err);
-        document.getElementById('result').textContent =
-          'ファイルの読み込みに失敗しました：' + err.message;
-      }
-    };
-    reader.readAsArrayBuffer(file); // ← binary ではなく arrayBuffer
-  });
-
-  // ******** 2. シート読み込み ********
-  document.getElementById('loadBtn').onclick = () => {
-    const sheetName = document.getElementById('sheetNameSelect').value;
-    if (!workbook) {
-      document.getElementById('result').innerHTML =
-        'まず Excel ファイルをアップロードしてください。';
-      return;
-    }
-    const sheet = workbook.Sheets[sheetName];
-    excelData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-    document.getElementById('result').innerHTML =
-      `✅ シート「${sheetName}」を読み込みました。キーワードを入力して検索できます。`;
-  };
-
-  // ******** 3. 検索 ********
-  document.getElementById('searchBtn').onclick = () => {
-    const keyword = document.getElementById('keyword').value;
-    if (!excelData.length) {
-      document.getElementById('result').innerHTML =
-        'まずシートを読み込んでください。';
-      return;
-    }
-    if (!keyword) {
-      document.getElementById('result').innerHTML =
-        'キーワードを入力してください。';
-      return;
-    }
-
-    const matched = excelData.filter((row) =>
-      row.some((cell) => (cell ?? '').toString().includes(keyword))
-    );
-
-    if (!matched.length) {
-      document.getElementById('result').innerHTML =
-        '一致する行がありません。';
-      return;
-    }
-
-    let html = '<table>';
-    matched.forEach((row) => {
-      html +=
-        '<tr>' +
-        row.map((cell) => `<td>${cell ?? ''}</td>`).join('') +
-        '</tr>';
+      };
+      reader.readAsArrayBuffer(file);
     });
-    html += '</table>';
-    document.getElementById('result').innerHTML = html;
-  };
-</script>
+  </script>
+</body>
+</html>

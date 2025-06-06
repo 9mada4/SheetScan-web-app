@@ -2,45 +2,62 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>Excel部分一致検索（シート指定）</title>
+  <title>Excelファイル部分一致検索</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js"></script>
   <style>
     table { border-collapse: collapse; }
     td, th { border: 1px solid #888; padding: 4px 8px; }
+    #note { color: #777; margin-bottom: 8px; }
   </style>
 </head>
 <body>
-  <h1>Excel部分一致検索（シート指定）</h1>
-  <div>
-    <label>シート名: <input type="text" id="sheetName" value=""></label>
-    <button id="loadBtn">Excel読み込み</button>
+  <h1>Excelファイル部分一致検索</h1>
+  <div id="note">
+    アップロードしたExcelファイルは外部に送信されません。すべてブラウザ内で処理されます。
   </div>
-  <br>
-  <div>
-    <input type="text" id="keyword" placeholder="キーワードを入力">
-    <button id="searchBtn">検索</button>
-  </div>
+  <input type="file" id="excelInput" accept=".xlsx">
+  <label>
+    シート名:
+    <input type="text" id="sheetName" value="">
+    <button id="loadBtn">シート読み込み</button>
+  </label>
+  <br><br>
+  <input type="text" id="keyword" placeholder="キーワードを入力">
+  <button id="searchBtn">検索</button>
   <div id="result"></div>
   <script>
-    let excelData = [];
     let workbook = null;
+    let excelData = [];
 
-    // ファイルのURL（GitHub Pages上のパスに合わせる）
-    const EXCEL_URL = './data.xlsx';
+    // Excelファイル読み込み
+    document.getElementById('excelInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const data = new Uint8Array(ev.target.result);
+        workbook = XLSX.read(data, {type: 'array'});
+        // シート名のリストを表示
+        document.getElementById('result').innerHTML =
+          'シート名候補: ' + workbook.SheetNames.map(n => `<b>${n}</b>`).join(', ');
+      };
+      reader.readAsArrayBuffer(file);
+    });
 
-    // Excel読み込み
-    document.getElementById('loadBtn').onclick = async function() {
+    // シート読み込み
+    document.getElementById('loadBtn').onclick = function() {
       const sheetName = document.getElementById('sheetName').value;
+      if (!workbook) {
+        document.getElementById('result').innerHTML = 'まずExcelファイルをアップロードしてください。';
+        return;
+      }
       if (!sheetName) {
         document.getElementById('result').innerHTML = 'シート名を入力してください。';
         return;
       }
-      // fetchでバイナリ取得
-      const res = await fetch(EXCEL_URL);
-      const arrayBuffer = await res.arrayBuffer();
-      workbook = XLSX.read(arrayBuffer, {type: 'array'});
       if (!workbook.SheetNames.includes(sheetName)) {
-        document.getElementById('result').innerHTML = '指定されたシートが見つかりません。';
+        document.getElementById('result').innerHTML = '指定されたシートが見つかりません。候補: ' +
+          workbook.SheetNames.join(', ');
         return;
       }
       const sheet = workbook.Sheets[sheetName];
@@ -52,7 +69,7 @@
     document.getElementById('searchBtn').onclick = function() {
       const keyword = document.getElementById('keyword').value;
       if (!excelData.length) {
-        document.getElementById('result').innerHTML = 'Excelシートを先に読み込んでください。';
+        document.getElementById('result').innerHTML = 'まずシートを読み込んでください。';
         return;
       }
       if (!keyword) {
@@ -61,7 +78,7 @@
       }
       // 部分一致で該当行抽出
       const matched = excelData.filter(
-        row => row.some(cell => (cell+"").includes(keyword))
+        row => row.some(cell => (cell ?? '').toString().includes(keyword))
       );
       if (!matched.length) {
         document.getElementById('result').innerHTML = '一致する行がありません。';
@@ -70,7 +87,7 @@
       // テーブルとして出力
       let html = '<table>';
       matched.forEach(row => {
-        html += '<tr>' + row.map(cell => `<td>${cell??""}</td>`).join('') + '</tr>';
+        html += '<tr>' + row.map(cell => `<td>${cell ?? ""}</td>`).join('') + '</tr>';
       });
       html += '</table>';
       document.getElementById('result').innerHTML = html;

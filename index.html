@@ -43,22 +43,31 @@
   <div id="note">
     アップロードしたExcelファイルは外部に送信されません。すべてブラウザ内で処理されます。
   </div>
-
+  
+  <!-- Excel ファイル選択ボタン -->
   <label id="excelInputLabel" for="excelInput">Excelファイルを選択</label>
   <input type="file" id="excelInput" accept=".xlsx,.xls">
   <span id="selectedFileName"></span>
 
+  <!-- シート名一覧表示 -->
   <div id="sheetList" class="sheet-list"></div>
+  <button id="loadBtn">選択したシートを読み込む</button>
 
-  <label>
-    シート名:
-    <input type="text" id="sheetName" value="">
-    <button id="loadBtn">シート読み込み</button>
-  </label>
   <br><br>
-  <input type="text" id="keyword" placeholder="キーワードを入力">
 
+  <!-- 部分一致検索用 -->
+  <input type="text" id="keyword" placeholder="キーワードを入力">
   <div id="result" class="sheet-list"></div>
+  <br><br>
+
+  <!-- 前後参照検索用 -->
+  <input type="text" id="contextKeyword" placeholder="キーワードを入力">
+  <div style="margin-top: 8px; display: flex; align-items: center;">
+    <button id="prevHit">&larr;</button>
+    <span id="currentHit" style="margin: 0 8px;">0/0</span>
+    <button id="nextHit">&rarr;</button>
+  </div>
+  <div id="contextResult" class="sheet-list" style="margin-top: 8px;"></div>
 
   <script>
     let workbook = null;
@@ -85,8 +94,13 @@
           if (names.length === 0) {
             document.getElementById('sheetList').textContent = 'シートが見つかりませんでした。';
           } else {
-            document.getElementById('sheetList').innerHTML =
-              'シート名一覧：' + names.map(n => `<b>${n}</b>`).join(', ');
+            const listContainer = document.getElementById('sheetList');
+            listContainer.innerHTML = 'シート名一覧：<br>' + 
+              names.map(n => 
+                `<label style="display: block; margin-bottom: 4px;">
+                   <input type="checkbox" class="sheetCheckbox" value="${n}"> ${n}
+                 </label>`
+              ).join('');
           }
         } catch (err) {
           console.error('ファイル読み込みエラー:', err); // デバッグ用
@@ -102,25 +116,26 @@
       reader.readAsArrayBuffer(file);
     });
 
-    // シート読み込み
+    // シート読み込み（複数対応）
     document.getElementById('loadBtn').onclick = function() {
-      const sheetName = document.getElementById('sheetName').value;
+      const checkedBoxes = Array.from(document.getElementsByClassName('sheetCheckbox'))
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
       if (!workbook) {
         document.getElementById('result').innerHTML = 'まずExcelファイルをアップロードしてください。';
         return;
       }
-      if (!sheetName) {
-        document.getElementById('result').innerHTML = 'シート名を入力してください。';
+      if (checkedBoxes.length === 0) {
+        document.getElementById('result').innerHTML = '少なくとも1つのシートを選択してください。';
         return;
       }
-      if (!workbook.SheetNames.includes(sheetName)) {
-        document.getElementById('result').innerHTML = '指定されたシートが見つかりません。候補: ' +
-          workbook.SheetNames.join(', ');
-        return;
-      }
-      const sheet = workbook.Sheets[sheetName];
-      excelData = XLSX.utils.sheet_to_json(sheet, {header:1});
-      document.getElementById('result').innerHTML = `<b>シート「${sheetName}」を読み込みました。</b>`;
+      excelData = [];
+      checkedBoxes.forEach(sheetName => {
+        const sheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json(sheet, {header:1});
+        data.forEach(row => excelData.push(row));
+      });
+      document.getElementById('result').innerHTML = `<b>${checkedBoxes.join(', ')} を読み込みました。</b>`;
     };
 
     // 部分一致検索
@@ -147,6 +162,82 @@
       });
       html += '</table>';
       document.getElementById('result').innerHTML = html;
+    });
+    // コンテキスト検索用のグローバル変数
+    let contextMatches = [];
+    let currentHitIndex = 0;
+
+    // 新しいキーワード入力イベントリスナー
+    document.getElementById('contextKeyword').addEventListener('input', function() {
+      const keyword = this.value;
+      const ctxResult = document.getElementById('contextResult');
+      contextMatches = [];
+      currentHitIndex = 0;
+      ctxResult.innerHTML = '';
+      if (!excelData.length) {
+        ctxResult.innerHTML = 'まずシートを読み込んでください。';
+        document.getElementById('currentHit').textContent = '0/0';
+        return;
+      }
+      if (!keyword) {
+        ctxResult.innerHTML = 'キーワードを入力してください。';
+        document.getElementById('currentHit').textContent = '0/0';
+        return;
+      }
+      // 行ごとに部分一致をチェックし、インデックスを保存
+      excelData.forEach((row, i) => {
+        if (row.some(cell => (cell ?? '').toString().includes(keyword))) {
+          contextMatches.push(i);
+        }
+      });
+      if (contextMatches.length === 0) {
+        ctxResult.innerHTML = '一致する行がありません。';
+        document.getElementById('currentHit').textContent = '0/0';
+        return;
+      }
+      // 最初のヒットを表示
+      showContextRow();
+    });
+
+    // 前後7行を表示する関数
+    function showContextRow() {
+      const ctxResult = document.getElementById('contextResult');
+      ctxResult.innerHTML = '';
+      if (contextMatches.length === 0) {
+        return;
+      }
+      const hitIndex = contextMatches[currentHitIndex];
+      const start = Math.max(0, hitIndex - 7);
+      const end = Math.min(excelData.length - 1, hitIndex + 7);
+
+      let html = '<table>';
+      for (let i = start; i <= end; i++) {
+        const row = excelData[i];
+        // 一致行をハイライトする
+        if (i === hitIndex) {
+          html += '<tr style="background-color: #fffbcc;">';
+        } else {
+          html += '<tr>';
+        }
+        html += row.map(cell => `<td>${cell ?? ""}</td>`).join('');
+        html += '</tr>';
+      }
+      html += '</table>';
+      ctxResult.innerHTML = html;
+      // 現在何件目かを表示
+      document.getElementById('currentHit').textContent = `${currentHitIndex + 1}/${contextMatches.length}`;
+    }
+
+    // 矢印ボタンでヒットを巡回する
+    document.getElementById('prevHit').addEventListener('click', function() {
+      if (contextMatches.length === 0) return;
+      currentHitIndex = (currentHitIndex - 1 + contextMatches.length) % contextMatches.length;
+      showContextRow();
+    });
+    document.getElementById('nextHit').addEventListener('click', function() {
+      if (contextMatches.length === 0) return;
+      currentHitIndex = (currentHitIndex + 1) % contextMatches.length;
+      showContextRow();
     });
   </script>
 </body>

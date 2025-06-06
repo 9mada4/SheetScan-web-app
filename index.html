@@ -21,6 +21,13 @@
     #excelInput {
       display: none;
     }
+    .sheet-list {
+      background: #eef;
+      padding: 6px 10px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      margin-top: 8px;
+    }
   </style>
 </head>
 <body>
@@ -32,7 +39,9 @@
   <label id="excelInputLabel" for="excelInput">Excelファイルを選択</label>
   <input type="file" id="excelInput" accept=".xlsx">
   <span id="selectedFileName"></span>
-  <br>
+
+  <div id="sheetList" class="sheet-list"></div>
+
   <label>
     シート名:
     <input type="text" id="sheetName" value="">
@@ -41,22 +50,36 @@
   <br><br>
   <input type="text" id="keyword" placeholder="キーワードを入力">
   <button id="searchBtn">検索</button>
-  <div id="result"></div>
+
+  <div id="result" class="sheet-list"></div>
+
   <script>
     let workbook = null;
     let excelData = [];
 
-    // ファイル名表示
+    // ファイル名とシート名一覧表示
     document.getElementById('excelInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       document.getElementById('selectedFileName').textContent = file ? `選択中: ${file.name}` : '';
+      document.getElementById('sheetList').textContent = '';
+      document.getElementById('result').textContent = '';
       if (!file) return;
+
       const reader = new FileReader();
       reader.onload = function(ev) {
-        const data = new Uint8Array(ev.target.result);
-        workbook = XLSX.read(data, {type: 'array'});
-        document.getElementById('result').innerHTML =
-          'シート名候補: ' + workbook.SheetNames.map(n => `<b>${n}</b>`).join(', ');
+        try {
+          const data = new Uint8Array(ev.target.result);
+          workbook = XLSX.read(data, {type: 'array'});
+          const names = workbook.SheetNames;
+          if (names.length === 0) {
+            document.getElementById('sheetList').textContent = 'シートが見つかりませんでした。';
+          } else {
+            document.getElementById('sheetList').innerHTML =
+              'シート名一覧：' + names.map(n => `<b>${n}</b>`).join(', ');
+          }
+        } catch (err) {
+          document.getElementById('sheetList').textContent = 'ファイルの読み込みに失敗しました。';
+        }
       };
       reader.readAsArrayBuffer(file);
     });
@@ -82,7 +105,7 @@
       document.getElementById('result').innerHTML = `<b>シート「${sheetName}」を読み込みました。</b>`;
     };
 
-    // 検索
+    // 部分一致検索
     document.getElementById('searchBtn').onclick = function() {
       const keyword = document.getElementById('keyword').value;
       if (!excelData.length) {

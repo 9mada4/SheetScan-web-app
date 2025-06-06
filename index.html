@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>画像貼り付けから文字抽出</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+  <style>
+    #dropZone {
+      width: 100%;
+      height: 300px;
+      border: 2px dashed #ccc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #666;
+      margin-bottom: 20px;
+    }
+    #preview {
+      max-width: 100%;
+      display: block;
+      margin-bottom: 20px;
+    }
+    #output {
+      white-space: pre-wrap;
+      border: 1px solid #ccc;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>画像貼り付けから文字を抽出</h1>
+
+  <div id="dropZone">ここに画像を貼り付け（Ctrl+V）</div>
+  <img id="preview" style="display:none;">
+  
+  <h2>抽出されたテキスト:</h2>
+  <div id="output"></div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const preview = document.getElementById('preview');
+    const output = document.getElementById('output');
+
+    // ペーストイベントを監視
+    window.addEventListener('paste', async (event) => {
+      const items = event.clipboardData.items;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const blob = item.getAsFile();
+          const url = URL.createObjectURL(blob);
+
+          // 画像表示
+          preview.src = url;
+          preview.style.display = 'block';
+
+          // OCR実行
+          output.textContent = '認識中...しばらくお待ちください';
+          const { data: { text } } = await Tesseract.recognize(
+            blob, // Blobオブジェクトを直接渡せる
+            'jpn', // 日本語
+            {
+              logger: m => console.log(m)
+            }
+          );
+          output.textContent = text;
+        }
+      }
+    });
+  </script>
+</body>
+</html>

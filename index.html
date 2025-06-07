@@ -10,12 +10,29 @@
     #note { color: #777; margin-bottom: 8px; }
     /* キーワード検索結果を小さく表示 */
     #result table {
-      font-size: 10px;
+      font-size: 14px;
       border-collapse: collapse;
     }
     #result td, #result th {
       padding: 2px 4px;
     }
+    /* コンテキスト検索結果のフォントサイズを小さく */
+    #contextResult table {
+      font-size: 14px;
+      border-collapse: collapse;
+    }
+    #contextResult td, #contextResult th {
+      padding: 2px 4px;
+    }
+    /* 読み込んだシート内容のフォントサイズを小さく */
+    #sheetContent table {
+      font-size: 10px;
+      border-collapse: collapse;
+    }
+    #sheetContent td, #sheetContent th {
+      padding: 2px 4px;
+    }
+    
     #excelInputLabel {
       display: inline-block;
       padding: 8px 16px;
@@ -50,22 +67,27 @@
       <div id="sheetList" class="sheet-list"></div>
     </div>
     <div style="display: flex; flex-direction: column; align-items: flex-start;">
-      <label id="excelInputLabel" for="excelInput">Excelファイルを選択</label>
+      <label id="excelInputLabel" for="excelInput">①　Excelファイルを選択</label>
       <input type="file" id="excelInput" accept=".xlsx,.xls" style="display: none;">
-      <span id="selectedFileName" style="margin-top: 8px; font-size: 12px;"></span>
+      <span id="selectedFileName" style="margin-top: 8px; font-size: 16px;"></span>
+      <br>
+      <button id="loadBtn">②　選択したシートを読み込む</button>
+      <span id="sheetLoadInfo" style="margin-top: 8px; font-size: 14px; color: #333;"></span>
     </div>
   </div>
-  <button id="loadBtn">選択したシートを読み込む</button>
-
-  <br><br>
 
   <!-- 部分一致検索用 -->
   <input type="text" id="keyword" placeholder="キーワードを入力">
+  ヒットした行を全て表示
+  <button id="resultFontDec" type="button">ー</button>
+  <button id="resultFontInc" type="button">＋</button>
   <div id="result" class="sheet-list"></div>
-  <br><br>
 
   <!-- 前後参照検索用 -->
   <input type="text" id="contextKeyword" placeholder="キーワードを入力">
+  ヒットした行を前後7行と共に個別表示
+  <button id="contextFontDec" type="button">ー</button>
+  <button id="contextFontInc" type="button">＋</button>
   <div style="margin-top: 8px; display: flex; align-items: center;">
     <button id="prevHit">&larr;</button>
     <span id="currentHit" style="margin: 0 8px;">0/0</span>
@@ -73,9 +95,22 @@
   </div>
   <div id="contextResult" class="sheet-list" style="margin-top: 8px;"></div>
 
+  <!-- 読み込んだシート内容表示 -->
+  <div id="sheetNav" style="display: flex; align-items: center; margin-top: 12px;">
+    <button id="prevSheet">&lt;</button>
+    <span id="currentSheetName" style="margin: 0 8px; font-weight: bold;"></span>
+    <button id="nextSheet">&gt;</button>
+  </div>
+  <div id="sheetContent" class="sheet-list" style="margin-top: 8px;"></div>
+
+
   <script>
     let workbook = null;
     let excelData = [];
+
+    let sheetMap = {};
+    let loadedSheetNames = [];
+    let currentSheetIndex = 0;
 
     // ファイル名とシート名一覧表示
     document.getElementById('excelInput').addEventListener('change', function(e) {
@@ -99,12 +134,16 @@
             document.getElementById('sheetList').textContent = 'シートが見つかりませんでした。';
           } else {
             const listContainer = document.getElementById('sheetList');
-            listContainer.innerHTML = 'シート名一覧：<br>' + 
-              names.map(n => 
-                `<label style="display: block; margin-bottom: 4px;">
-                   <input type="checkbox" class="sheetCheckbox" value="${n}"> ${n}
-                 </label>`
-              ).join('');
+            listContainer.innerHTML = `
+              <div style="margin-bottom: 8px; font-weight: bold;">シート名一覧：</div>
+              <div style="display: grid; grid-auto-flow: column; grid-template-rows: repeat(5, auto); gap: 4px;">
+                ${names.map(n => 
+                  `<label style="margin-bottom: 2px;">
+                     <input type="checkbox" class="sheetCheckbox" value="${n}"> ${n}
+                   </label>`
+                ).join('')}
+              </div>
+            `;
           }
         } catch (err) {
           console.error('ファイル読み込みエラー:', err); // デバッグ用
@@ -127,19 +166,27 @@
         .map(cb => cb.value);
       if (!workbook) {
         document.getElementById('result').innerHTML = 'まずExcelファイルをアップロードしてください。';
+        document.getElementById('sheetLoadInfo').textContent = '';
         return;
       }
       if (checkedBoxes.length === 0) {
         document.getElementById('result').innerHTML = '少なくとも1つのシートを選択してください。';
+        document.getElementById('sheetLoadInfo').textContent = '';
         return;
       }
       excelData = [];
+      sheetMap = {};
+      loadedSheetNames = checkedBoxes;
+      currentSheetIndex = 0;
       checkedBoxes.forEach(sheetName => {
         const sheet = workbook.Sheets[sheetName];
         const data = XLSX.utils.sheet_to_json(sheet, {header:1});
-        data.forEach(row => excelData.push(row));
+        excelData = excelData.concat(data);
+        sheetMap[sheetName] = data;
       });
-      document.getElementById('result').innerHTML = `<b>${checkedBoxes.join(', ')} を読み込みました。</b>`;
+      document.getElementById('sheetLoadInfo').textContent = `${loadedSheetNames.join(', ')} を読み込みました。`;
+      document.getElementById('result').innerHTML = '';
+      showSheet();
     };
 
     // 部分一致検索
@@ -243,6 +290,48 @@
       currentHitIndex = (currentHitIndex + 1) % contextMatches.length;
       showContextRow();
     });
+
+    function showSheet() {
+      if (loadedSheetNames.length === 0) return;
+      const name = loadedSheetNames[currentSheetIndex];
+      const data = sheetMap[name];
+      document.getElementById('currentSheetName').textContent = name;
+      let html = '<table>';
+      data.forEach(row => {
+        html += '<tr>' + row.map(cell => `<td>${cell ?? ""}</td>`).join('') + '</tr>';
+      });
+      html += '</table>';
+      document.getElementById('sheetContent').innerHTML = html;
+    }
+
+    document.getElementById('prevSheet').addEventListener('click', function() {
+      if (loadedSheetNames.length === 0) return;
+      currentSheetIndex = (currentSheetIndex - 1 + loadedSheetNames.length) % loadedSheetNames.length;
+      showSheet();
+    });
+
+    document.getElementById('nextSheet').addEventListener('click', function() {
+      if (loadedSheetNames.length === 0) return;
+      currentSheetIndex = (currentSheetIndex + 1) % loadedSheetNames.length;
+      showSheet();
+    });
+
+    // フォントサイズ調整用関数
+    function adjustFontSize(containerId, delta) {
+      const container = document.getElementById(containerId);
+      const table = container.querySelector('table');
+      if (!table) return;
+      const style = window.getComputedStyle(table);
+      const size = parseFloat(style.fontSize);
+      const newSize = Math.max(6, size + delta);
+      table.style.fontSize = newSize + 'px';
+    }
+
+    // イベントリスナー登録
+    document.getElementById('resultFontDec').addEventListener('click', () => adjustFontSize('result', -1));
+    document.getElementById('resultFontInc').addEventListener('click', () => adjustFontSize('result',  1));
+    document.getElementById('contextFontDec').addEventListener('click', () => adjustFontSize('contextResult', -1));
+    document.getElementById('contextFontInc').addEventListener('click', () => adjustFontSize('contextResult',  1));
   </script>
 </body>
 </html>

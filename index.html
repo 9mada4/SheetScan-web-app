@@ -85,7 +85,7 @@
 
   <!-- 前後参照検索用 -->
   <input type="text" id="contextKeyword" placeholder="キーワードを入力">
-  ヒットした行を前後7行と共に個別表示
+  ヒットした行を前後5行と共に個別表示
   <button id="contextFontDec" type="button">ー</button>
   <button id="contextFontInc" type="button">＋</button>
   <div style="margin-top: 8px; display: flex; align-items: center;">
@@ -250,7 +250,7 @@
       showContextRow();
     });
 
-    // 前後7行を表示する関数
+    // 前後5行を表示する関数
     function showContextRow() {
       const ctxResult = document.getElementById('contextResult');
       ctxResult.innerHTML = '';
@@ -258,8 +258,8 @@
         return;
       }
       const hitIndex = contextMatches[currentHitIndex];
-      const start = Math.max(0, hitIndex - 7);
-      const end = Math.min(excelData.length - 1, hitIndex + 7);
+      const start = Math.max(0, hitIndex - 5);
+      const end = Math.min(excelData.length - 1, hitIndex + 5);
 
       let html = '<table>';
       for (let i = start; i <= end; i++) {

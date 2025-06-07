@@ -1,4 +1,4 @@
-# ocr-web-app
+# SheetScan-web-app
 ## HowToUse
 htmlをダウンロードしてブラウザで開くと使える
 or 以下にアクセス

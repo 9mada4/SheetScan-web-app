@@ -44,13 +44,17 @@
     アップロードしたExcelファイルは外部に送信されません。すべてブラウザ内で処理されます。
   </div>
   
-  <!-- Excel ファイル選択ボタン -->
-  <label id="excelInputLabel" for="excelInput">Excelファイルを選択</label>
-  <input type="file" id="excelInput" accept=".xlsx,.xls">
-  <span id="selectedFileName"></span>
-
-  <!-- シート名一覧表示 -->
-  <div id="sheetList" class="sheet-list"></div>
+  <div style="display: flex; align-items: flex-start; gap: 40px; margin-bottom: 20px;">
+    <div>
+      <div style="margin-bottom: 10px; font-weight: bold;">シート名一覧</div>
+      <div id="sheetList" class="sheet-list"></div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: flex-start;">
+      <label id="excelInputLabel" for="excelInput">Excelファイルを選択</label>
+      <input type="file" id="excelInput" accept=".xlsx,.xls" style="display: none;">
+      <span id="selectedFileName" style="margin-top: 8px; font-size: 12px;"></span>
+    </div>
+  </div>
   <button id="loadBtn">選択したシートを読み込む</button>
 
   <br><br>
